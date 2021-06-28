@@ -81,12 +81,28 @@ func getArticles(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	client, _ := mongoConnect(ctx)
-	articles, _ := client.Database("go-crud").Collection("go-crud").Find(ctx, bson.D{})
-	var allArticles []bson.M
-	fmt.Println(articles.All(ctx, &allArticles))
+	articles, err := client.Database("go-crud").Collection("go-crud").Find(ctx, bson.D{})
+	// var allArticles []Article
+	// fmt.Println(articles.All(ctx, &allArticles))
 
-	results, _ := json.Marshal(articles)
-	fmt.Fprintf(w, string(results))
+	if err != nil {
+		fmt.Println("Finding all documents ERROR:", err)
+		defer articles.Close(ctx)
+	} else {
+		for articles.Next(ctx) {
+			var results bson.D
+			err := articles.Decode(&results)
+			if err != nil {
+				fmt.Println("curson.Next() ERROR: ", err)
+			} else {
+				// fmt.Println(results)
+				json.NewEncoder(w).Encode(results)
+			}
+		}
+	}
+
+	// results, _ := json.Marshal(articles)
+	// fmt.Fprintf(w, string(results))
 
 }
 

@@ -39,7 +39,7 @@ func mongoConnect(ctx context.Context) (*mongo.Client, error) {
 
 // ************ API ENDPOINTS **************
 
-func getDatabases(w http.ResponseWriter, r *http.Request) {
+func getDatabasesCount(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -146,7 +146,7 @@ func getArticleById(w http.ResponseWriter, r *http.Request) {
 
 func handlers() {
 	router := mux.NewRouter()
-	router.HandleFunc("/getdatabases", getDatabases)
+	router.HandleFunc("/getdatabasescount", getDatabasesCount)
 	router.HandleFunc("/addarticle", addArticle).Methods("POST")
 	router.HandleFunc("/getarticles", getArticles)
 	router.HandleFunc("/getarticlebyid/{id}", getArticleById)

@@ -52,10 +52,10 @@ func getDatabases(w http.ResponseWriter, r *http.Request) {
 }
 
 func addArticle(w http.ResponseWriter, r *http.Request) {
-	var article Article
+	var newArticle Article
 	reqBody, _ := ioutil.ReadAll(r.Body)
 
-	// ********* mongo **********
+	// ********* Content and MongoConnect **********
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -63,47 +63,85 @@ func addArticle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// *************************
+	// *********************************************
 
-	json.Unmarshal(reqBody, &article)
+	json.Unmarshal(reqBody, &newArticle)
 	// article := Article{
 	// 	Id:      "1",
 	// 	Title:   "Title 1",
 	// 	Content: "my articles content",
 	// }
 
-	client.Database("go-crud").Collection("go-crud").InsertOne(ctx, article)
-	fmt.Fprintf(w, "Article added.")
+	// check if the article is already available or not
+	document := client.Database("go-crud").Collection("go-crud").FindOne(ctx, bson.D{{Key: "id", Value: newArticle.Id}})
+	var article Article
+	document.Decode(&article)
+
+	if article.Id != "" {
+		fmt.Fprintf(w, "Article CANNOT be added, since ID is already available, please try with new ID.")
+	} else {
+		client.Database("go-crud").Collection("go-crud").InsertOne(ctx, newArticle)
+		fmt.Fprintf(w, "Article added.")
+	}
 }
 
 func getArticles(w http.ResponseWriter, r *http.Request) {
+	var results []Article
+	// ********* Content and MongoConnect **********
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, _ := mongoConnect(ctx)
+	client, err := mongoConnect(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// *********************************************
+
 	articles, err := client.Database("go-crud").Collection("go-crud").Find(ctx, bson.D{})
-	// var allArticles []Article
-	// fmt.Println(articles.All(ctx, &allArticles))
 
 	if err != nil {
 		fmt.Println("Finding all documents ERROR:", err)
 		defer articles.Close(ctx)
 	} else {
 		for articles.Next(ctx) {
-			var results Article
-			err := articles.Decode(&results)
+			var result Article
+			err := articles.Decode(&result)
 			if err != nil {
 				fmt.Println("curson.Next() ERROR: ", err)
 			} else {
 				// fmt.Println(results)
-				json.NewEncoder(w).Encode(results)
+				// json.NewEncoder(w).Encode(result)
+				results = append(results, result)
 			}
 		}
 	}
+	json.NewEncoder(w).Encode(results)
+}
 
-	// results, _ := json.Marshal(articles)
-	// fmt.Fprintf(w, string(results))
+func getArticleById(w http.ResponseWriter, r *http.Request) {
 
+	// ********* Content and MongoConnect **********
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client, err := mongoConnect(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// *****************************************
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	document := client.Database("go-crud").Collection("go-crud").FindOne(ctx, bson.D{{Key: "id", Value: id}})
+
+	var article Article
+	document.Decode(&article)
+
+	if article.Id == "" {
+		fmt.Fprintf(w, "Article Not Found for ID "+id)
+	} else {
+		json.NewEncoder(w).Encode(article)
+	}
 }
 
 func handlers() {
@@ -111,6 +149,7 @@ func handlers() {
 	router.HandleFunc("/getdatabases", getDatabases)
 	router.HandleFunc("/addarticle", addArticle).Methods("POST")
 	router.HandleFunc("/getarticles", getArticles)
+	router.HandleFunc("/getarticlebyid/{id}", getArticleById)
 	http.ListenAndServe(":8080", router)
 }
 

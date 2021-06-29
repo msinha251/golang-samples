@@ -90,7 +90,7 @@ func getArticles(w http.ResponseWriter, r *http.Request) {
 		defer articles.Close(ctx)
 	} else {
 		for articles.Next(ctx) {
-			var results bson.D
+			var results Article
 			err := articles.Decode(&results)
 			if err != nil {
 				fmt.Println("curson.Next() ERROR: ", err)

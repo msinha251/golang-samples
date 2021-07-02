@@ -126,6 +126,7 @@ func PingRedis(c *fiber.Ctx) error {
 	})
 }
 
+// GET ARTICLE BY ID From Cache
 func GetArticleByIdRedis(c *fiber.Ctx) error {
 	paramId := c.Params("id")
 	id, err := strconv.Atoi(paramId)
@@ -150,8 +151,6 @@ func GetArticleByIdRedis(c *fiber.Ctx) error {
 		var article Article
 		foundArticle.Decode(&article)
 		jsonarticle, err := json.Marshal(article)
-
-		fmt.Println()
 		if err != nil {
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{
 				"success": false,
@@ -171,4 +170,118 @@ func GetArticleByIdRedis(c *fiber.Ctx) error {
 		"success": true,
 		"article": rdsArticle.Val(),
 	})
+}
+
+// MAP REDIS KEY TO MONGODB via GOLANG DICTIONARY (MAP)
+func UpdateRedisKeysInMongo() map[string]string {
+	siteIdDict := make(map[string]string)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	rds := RedisConnect()
+	fmt.Println(rds.Ping(ctx).Val())
+	if rds.Ping(ctx).Val() != "PONG" {
+		fmt.Println("Redis is down")
+		return siteIdDict
+	}
+
+	rdsKeys := rds.Keys(ctx, "*")
+	// fmt.Println(rdsKeys.Val())
+	for _, key := range rdsKeys.Val() {
+		siteIdDict[string(key)] = rds.Get(ctx, string(key)).Val()
+	}
+
+	// Update siteIdDict in mongodb
+	client := MongoConnect(ctx)
+	documents, err := client.Database("go-crud").Collection("siteid").CountDocuments(ctx, bson.D{})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(documents)
+	fmt.Println(siteIdDict)
+	if documents == 0 {
+		client.Database("go-crud").Collection("siteid").InsertOne(ctx, siteIdDict)
+	} else if len(siteIdDict) != 0 {
+		client.Database("go-crud").Collection("siteid").FindOneAndReplace(ctx, bson.D{}, siteIdDict)
+	} else {
+		fmt.Println("Either siteid collection or redisKeys are empty")
+		return siteIdDict
+	}
+	fmt.Println()
+	return siteIdDict
+}
+
+// INCREASE KEYS WITH 500 IF REDIS IS DOWN
+func IncrementKey() string {
+	siteIdDict := make(map[string]string)
+	type SiteIdIncreased struct {
+		Increased bool
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// Grabbing the sitesidincreased Bool value from mongo
+	client := MongoConnect(ctx)
+	increasedBool := client.Database("go-crud").Collection("siteidincreased").FindOne(ctx, bson.D{{}})
+	var siteidincreased SiteIdIncreased
+	increasedBool.Decode(&siteidincreased)
+	fmt.Println(siteidincreased)
+
+	rds := RedisConnect()
+
+	// Increase siteID by 500 if Redis is down and not already increased
+	if rds.Ping(ctx).Val() != "PONG" && siteidincreased.Increased == false {
+		siteid, err := client.Database("go-crud").Collection("siteid").Find(ctx, bson.D{{}})
+		if err != nil {
+			panic(err)
+		}
+		// SiteID increment
+		for siteid.Next(ctx) {
+			siteid.Decode(&siteIdDict)
+			fmt.Println(siteIdDict)
+			for country := range siteIdDict {
+				if country != "_id" {
+					var id int
+					id, err = strconv.Atoi(string(siteIdDict[country]))
+					if err != nil {
+						panic(err)
+					}
+					siteIdDict[country] = strconv.Itoa(id + 500)
+				}
+			}
+		}
+
+		// Changing SiteIdIncreased to TRUE, hence no more futher increment is required.
+		siteidincreased.Increased = true
+		client.Database("go-crud").Collection("siteidincreased").FindOneAndReplace(ctx, bson.M{"increased": false}, bson.M{"increased": true})
+
+		// Update increased SiteIdDict in mongodb
+		documents, err := client.Database("go-crud").Collection("siteid").CountDocuments(ctx, bson.D{})
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("documents are ", documents)
+		fmt.Println("Updated siteIdDict is ", siteIdDict)
+		if documents == 0 {
+			client.Database("go-crud").Collection("siteid").InsertOne(ctx, siteIdDict)
+		} else if len(siteIdDict) != 0 {
+			// replacing all documents in siteid collection
+			client := MongoConnect(ctx)
+			fmt.Println("Updated siteIdDict is ", siteIdDict)
+			// testing
+			deleted := client.Database("go-crud").Collection("siteid").FindOneAndDelete(ctx, bson.D{})
+			fmt.Println(deleted)
+			documents2, err := client.Database("go-crud").Collection("siteid").CountDocuments(ctx, bson.D{})
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(documents2)
+			// testing
+			client.Database("go-crud").Collection("siteid").InsertOne(ctx, siteIdDict)
+			return "MONGODB IS UPDATED with increased siteid under siteid collection"
+		} else {
+			fmt.Println("Either siteid collection or redisKeys are empty, NO UPDATE IN MONGODB")
+		}
+	}
+	return "Redis is UP OR SiteId already Increased."
+
 }

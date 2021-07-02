@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"redisconnect/controllers"
 	"redisconnect/routes"
 
 	"github.com/gofiber/fiber/v2"
@@ -19,6 +21,8 @@ func main() {
 	app := fiber.New()
 	app.Use(logger.New())
 	setupRoutes(app)
-	app.Listen(":8080")
 
+	// app.Listen(":8080")
+	fmt.Println(controllers.UpdateRedisKeysInMongo())
+	fmt.Println(controllers.IncrementKey())
 }

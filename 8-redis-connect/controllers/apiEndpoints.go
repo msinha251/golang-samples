@@ -259,7 +259,6 @@ func IncrementKey() string {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("documents are ", documents)
 		fmt.Println("Updated siteIdDict is ", siteIdDict)
 		if documents == 0 {
 			client.Database("go-crud").Collection("siteid").InsertOne(ctx, siteIdDict)
@@ -267,15 +266,9 @@ func IncrementKey() string {
 			// replacing all documents in siteid collection
 			client := MongoConnect(ctx)
 			fmt.Println("Updated siteIdDict is ", siteIdDict)
-			// testing
-			deleted := client.Database("go-crud").Collection("siteid").FindOneAndDelete(ctx, bson.D{})
-			fmt.Println(deleted)
-			documents2, err := client.Database("go-crud").Collection("siteid").CountDocuments(ctx, bson.D{})
-			if err != nil {
-				panic(err)
-			}
-			fmt.Println(documents2)
-			// testing
+			// deleting old siteid mongo document
+			client.Database("go-crud").Collection("siteid").FindOneAndDelete(ctx, bson.D{})
+			// Inserting new mongo document with Increatmented SiteID
 			client.Database("go-crud").Collection("siteid").InsertOne(ctx, siteIdDict)
 			return "MONGODB IS UPDATED with increased siteid under siteid collection"
 		} else {
@@ -283,5 +276,51 @@ func IncrementKey() string {
 		}
 	}
 	return "Redis is UP OR SiteId already Increased."
+}
+
+// UPDATE REDIS KEYS FROM MONGO WITH INCREATMENT KEYS
+func UpdateRedisKeyFromMongo() string {
+	type SiteIdIncreased struct {
+		Increased bool
+	}
+
+	siteIdDict := make(map[string]string)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Grabbing the sitesidincreased Bool value from mongo
+	client := MongoConnect(ctx)
+	mongoSiteIds, err := client.Database("go-crud").Collection("siteid").Find(ctx, bson.D{{}})
+	if err != nil {
+		panic(err)
+	}
+	// Update REDIS KEYS
+	for mongoSiteIds.Next(ctx) {
+		mongoSiteIds.Decode(&siteIdDict)
+		fmt.Println("Mongo SiteIDs", siteIdDict)
+	}
+
+	// Grabbing the sitesidincreased Bool value from mongo
+
+	increasedBool := client.Database("go-crud").Collection("siteidincreased").FindOne(ctx, bson.D{{}})
+	var siteidincreased SiteIdIncreased
+	increasedBool.Decode(&siteidincreased)
+	fmt.Println(siteidincreased)
+	rds := RedisConnect()
+
+	// Loop though siteIDs
+	if rds.Ping(ctx).Val() == "PONG" && siteidincreased.Increased == true {
+		for country := range siteIdDict {
+			if country != "_id" {
+				rds.Set(ctx, country, siteIdDict[country], 0)
+				fmt.Println("Redis Key " + country + " is Updated / Reinitialized with " + siteIdDict[country])
+			}
+		}
+		siteidincreased.Increased = false
+		client.Database("go-crud").Collection("siteidincreased").FindOneAndReplace(ctx, bson.M{"increased": true}, bson.M{"increased": false})
+		return "Redis Key has been Updated / Reinitialized with 500 increment, Also siteidincreased has been turned to FALSE"
+	}
+
+	return "Redis is UP or SiteID already Increased"
 
 }

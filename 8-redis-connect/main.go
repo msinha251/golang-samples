@@ -23,6 +23,7 @@ func main() {
 	setupRoutes(app)
 
 	// app.Listen(":8080")
-	fmt.Println(controllers.UpdateRedisKeysInMongo())
+	// fmt.Println(controllers.UpdateRedisKeysInMongo())
 	fmt.Println(controllers.IncrementKey())
+	fmt.Println(controllers.UpdateRedisKeyFromMongo())
 }

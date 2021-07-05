@@ -10,7 +10,6 @@ import (
 )
 
 var contextTimeout = 120 * time.Second
-var siteIdDict = make(map[string]string)
 
 type SiteIdIncreased struct {
 	Increased bool
@@ -18,7 +17,7 @@ type SiteIdIncreased struct {
 
 // MAP REDIS KEY TO MONGODB via GOLANG DICTIONARY (MAP)
 func UpdateRedisKeysInMongo() map[string]string {
-
+	var siteIdDict = make(map[string]string)
 	// ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	defer cancel()
@@ -37,7 +36,7 @@ func UpdateRedisKeysInMongo() map[string]string {
 		return siteIdDict
 	} else if rds.Ping(ctx).Val() == "PONG" && siteidincreased.Increased == false {
 		rdsKeys := rds.Keys(ctx, "*")
-		// fmt.Println(rdsKeys.Val())
+		fmt.Println("rds keys are ", rdsKeys.Val())
 		for _, key := range rdsKeys.Val() {
 			siteIdDict[string(key)] = rds.Get(ctx, string(key)).Val()
 		}
@@ -58,7 +57,20 @@ func UpdateRedisKeysInMongo() map[string]string {
 		if documents == 0 {
 			client.Database("go-crud").Collection("siteid").InsertOne(ctx, siteIdDict)
 		} else if len(siteIdDict) != 0 {
-			client.Database("go-crud").Collection("siteid").FindOneAndReplace(ctx, bson.D{}, siteIdDict)
+			// client.Database("go-crud").Collection("siteid").FindOneAndReplace(ctx, bson.D{}, siteIdDict)
+			// replacing all documents in siteid collection
+			client := MongoConnect(ctx)
+			fmt.Println("Updated siteIdDict is ", siteIdDict)
+			// deleting old siteid mongo document
+			client.Database("go-crud").Collection("siteid").FindOneAndDelete(ctx, bson.D{})
+			// Inserting new mongo document with Increatmented SiteID
+			client.Database("go-crud").Collection("siteid").InsertOne(ctx, siteIdDict)
+			fmt.Println("MONGODB IS UPDATED with increased siteid under siteid collection")
+			defer func() {
+				if err := client.Disconnect(ctx); err != nil {
+					panic(err)
+				}
+			}()
 		} else {
 			fmt.Println("Either siteid collection or redisKeys are empty")
 			return siteIdDict
@@ -69,13 +81,18 @@ func UpdateRedisKeysInMongo() map[string]string {
 			panic(err)
 		}
 	}()
+	// defer func() {
+	// 	if err := rds.Close(); err != nil {
+	// 		panic(err)
+	// 	}
+	// }()
 	fmt.Println(siteIdDict)
 	return siteIdDict
 }
 
 // INCREASE KEYS WITH 500 IF REDIS IS DOWN
 func IncrementKey() string {
-
+	var siteIdDict = make(map[string]string)
 	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	defer cancel()
 
@@ -147,6 +164,7 @@ func IncrementKey() string {
 
 // UPDATE REDIS KEYS FROM MONGO WITH INCREATMENT KEYS
 func UpdateRedisKeyFromMongo() string {
+	var siteIdDict = make(map[string]string)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

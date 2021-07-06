@@ -6,15 +6,11 @@ This will scan redis service as soon as it find redis is down go pipleine will i
 Go pipeline contains below functions:
 <br>
 
-* `Get Article By Id` : This tries to get data from cache for given ID, if data is not there in cache then it brings it from mongo db and persist in redis cache for future use.
-Function 1: It scans for redis keys and make a copy of that in mongo siteid collection. 
+* Function 1: It scans for redis keys and make a copy of that in mongo siteid collection. 
 	
-Function 2: As soon as it founds redis == DOWN and siteidIncreased == False (default), it'll increase the Mongo siteids with 500 and update siteidIncreased bool value to True, which is also stored and updated in another mongodb collection siteIdIncreased.
+* Function 2: As soon as it founds redis == DOWN and siteidIncreased == False (default), it'll increase the Mongo siteids with 500 and update siteidIncreased bool value to True, which is also stored and updated in another mongodb collection siteIdIncreased.
 	
-Function 3: As soon as it founds redis == UP and siteidIncreased == True, then it'll update the Redis key's from mongo siteid collection and update the siteidIncreased to False.
-
-<img src=>
-![Scheme](/GO-Learn/golang-samples/9-redis-Key-Increment/images/Redis_SiteID_Update_with_Mongo_1.png){width=60%}
+* Function 3: As soon as it founds redis == UP and siteidIncreased == True, then it'll update the Redis key's from mongo siteid collection and update the siteidIncreased to False.
 
 
-![Scheme](GO-Learn/golang-samples/9-redis-Key-Increment/images/Redis_SiteID_Update_with_Mongo_1.png){width=60%}
+![Scheme](/9-redis-Key-Increment/images/Redis_SiteID_Update_with_Mongo_1.png){width=60%}

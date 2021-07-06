@@ -13,5 +13,8 @@ Function 2: As soon as it founds redis == DOWN and siteidIncreased == False (def
 	
 Function 3: As soon as it founds redis == UP and siteidIncreased == True, then it'll update the Redis key's from mongo siteid collection and update the siteidIncreased to False.
 
-![Alt text](images/Redis SiteID Update with Mongo-1.png?raw=true "Redis Keys Increment on redis DOWN")
-![Scheme](images/Redis SiteID Update with Mongo-1.png){width=60%}
+<img src=>
+![Scheme](/GO-Learn/golang-samples/9-redis-Key-Increment/images/Redis_SiteID_Update_with_Mongo_1.png){width=60%}
+
+
+![Scheme](GO-Learn/golang-samples/9-redis-Key-Increment/images/Redis_SiteID_Update_with_Mongo_1.png){width=60%}
